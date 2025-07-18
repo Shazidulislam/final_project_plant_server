@@ -50,6 +50,7 @@ async function run() {
     // collection
     const plantCollection = db.collection("plants");
     const ordersCollection = db.collection("orders");
+    const userCollection  = db.collection("users")
     // Generate jwt token
     app.post('/jwt', async (req, res) => {
       const email = req.body
@@ -118,6 +119,50 @@ async function run() {
       const orderData = req.body;
       const result = await ordersCollection.insertOne(orderData)
       res.send(result)
+    })
+    //after purche order update plant quantity
+    app.patch("/update_plant_quantity/:id" , async(req , res)=>{
+      const {id} = req?.params;
+      const filter = {_id : new ObjectId(id)}
+      const { updateQuantity, status } = req.body;
+      const updateDoc ={
+        $inc:{
+          quantity: status === "decrease" ? -updateQuantity : updateQuantity
+        }
+      }
+      const result = await plantCollection.updateOne(filter , updateDoc ) 
+      console.log(result ,updateQuantity, status )
+      res.send(result)
+    })
+    //save and update user info in userCollection
+    app.post("/user" , async(req , res)=>{
+      const userData = req.body;
+        userData.role = "customer";
+        userData.create_at = new Date().toISOString()
+        userData.last_login = new Date().toISOString()
+        const qurey = {email:userData?.email}
+      const alreadyExsit = await userCollection.findOne(qurey)
+      //if data is already have then update only last login data
+      if(!!alreadyExsit){
+        const updateDoc ={
+          $set:{
+            last_login: new Date().toISOString()
+          }
+        }
+        const updateResult = await userCollection.updateOne(qurey ,updateDoc , {upsert:true} )
+        return res.send(updateResult)
+      }
+      const result = await userCollection.insertOne(userData)
+      res.send(result)
+    })
+    //get  user role
+    app.get("/user-role/:email" , async(req , res)=>{
+      const {email} = req.params
+      const result = await userCollection.findOne({email,})
+      if(!result){
+        return res.status(401).send({message:"user not found!"})
+      }
+      res.send({role:result?.role})
     })
     // Send a ping to confirm a successful connection
     await client.db('admin').command({ ping: 1 })
